@@ -1,0 +1,6 @@
+<MAExtractRequest>
+<CampaignDO detail="ALL">
+<Name operator="=">Credit_History_Campaign_v1.0</Name>
+<CapaignType operator="=">decisionCampaign</CapaignType>
+</CampaignDO>
+</MAExtractRequest>

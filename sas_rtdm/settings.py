@@ -84,6 +84,19 @@ DATABASES = {
     }
 }
 
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "mssql",
+#         "NAME": "db_Team5",
+#         "USER": "Team5",
+#         "PASSWORD": "Team51!wsx",
+#         "HOST": "c2-185-12-28-165.elastic.cloud.croc.ru",
+#         "PORT": "1433",
+#         "OPTIONS": {"driver": "ODBC Driver 17 for SQL Server",
+#         },
+#     },
+# }
+
 
 # Password validation
 # https://docs.djangoproject.com/en/3.2/ref/settings/#auth-password-validators
