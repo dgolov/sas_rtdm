@@ -2,6 +2,7 @@ from django.shortcuts import render
 from django.views import View
 from scp import SCPClient
 from .mixins import RequestDataMixin
+from .models import SubDiagram, Processes, Input, Output, Diagram, CheckSAS
 from .utils import Parser
 import requests
 import paramiko
@@ -55,14 +56,14 @@ class CheckRulesSetView(RequestDataMixin, View):
 
 
 class CheckLookups(RequestDataMixin, View):
-    """ Get -запрос, который позволяет определить все существующие на сервере rule sets.
+    """ Get -запрос, который позволяет определить все существующие на сервере check lookups.
     """
     def __init__(self):
         super(CheckLookups, self).__init__()
 
     def get(self, request, *args, **kwargs):
         response_SAS = requests.get(
-            self.host + '/referenceData/domains',headers=self.headers)
+            self.host + '/referenceData/domains', headers=self.headers)
         content = response_SAS.json()
         context = {'title': "Наборы правил", 'content': content['items']}
         return render(request, 'sas_rtdm/sas_id_data.html', context)
@@ -76,15 +77,28 @@ class GetRTDMData(View):
         self.user = 'sas'
         self.password = '#Orion123_'
         self.port = 22
+        self.xml_files = [
+            'request_main.xml', 'request_result.xml', 'request_client.xml', 'request_doc.xml', 'request_address.xml']
 
     def get(self, request, *args, **kwargs):
-        self.download_xml()
-        parser = Parser('out.xml')
-        content = parser.parse_xml()
-        context = {'title': 'Title', 'content': content}
+        dead_process = []
+        new_check = CheckSAS.objects.create()
+
+        for file in self.xml_files:
+            self.download_xml(file=file)
+            parser = Parser('out.xml')
+            parser.parse_xml(new_check)
+
+        last_check_data = self.get_last_check_data()
+        for process in last_check_data['processes']:
+            if process.source == 'Cell':
+                dead_process.append(process)
+
+        context = {'title': 'Title', 'content_list': last_check_data, 'dead_process': dead_process}
         return render(request, 'sas_rtdm/sas_rtdm_data.html', context)
 
-    def download_xml(self):
+    def download_xml(self, file):
+        """ Отправляет имя исполняемого xml файла на сервер и загружает out.xml с результатами запроса """
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         client.connect(
@@ -99,26 +113,29 @@ class GetRTDMData(View):
         stdin.flush()
 
         stdin, stdout, stderr = client.exec_command(
-            '/opt/sas/sashome/SASMarketingAutomationIntegrationUtilities/6.6/sasmaextract cisample@saspw Orion123 DefaultAuth "HACK" "/opt/sas/sashome/SASMarketingAutomationIntegrationUtilities/6.6/request.xml" "/opt/sas/sashome/SASMarketingAutomationIntegrationUtilities/6.6/out.xml"')
+            f'/opt/sas/sashome/SASMarketingAutomationIntegrationUtilities/6.6/sasmaextract cisample@saspw Orion123 DefaultAuth "HACK" "/opt/sas/sashome/SASMarketingAutomationIntegrationUtilities/6.6/{file}" "/opt/sas/sashome/SASMarketingAutomationIntegrationUtilities/6.6/out.xml"')
         data = stdout.read() + stderr.read()
         scp = SCPClient(client.get_transport())
         scp.get('/opt/sas/sashome/SASMarketingAutomationIntegrationUtilities/6.6/out.xml')
         client.close()
         scp.close()
+
         return data.decode('UTF-8')
 
-
-# def my_custom_sql():
-#     a = []
-#     with connection.cursor() as cursor:
-#         result = cursor.execute('''SELECT
-#         TABLE_NAME,
-#         COLUMN_NAME,
-#         DATA_TYPE,
-#         IS_NULLABLE
-#         FROM INFORMATION_SCHEMA.COLUMNS
-#         WHERE table_name='ADDRESS'
-#         ''')
-#         for item in result:
-#             a.append(item)
-#     return a
+    @staticmethod
+    def get_last_check_data():
+        """ Возвращает результаты последней проверки SAS """
+        last_check_date = CheckSAS.objects.last()
+        diagrams = Diagram.objects.filter(diagram_list=last_check_date)
+        sub_diagrams = SubDiagram.objects.filter(diagram__in=diagrams)
+        processes = Processes.objects.filter(diagram__in=diagrams)
+        input_values = Input.objects.filter(processes__in=processes)
+        output_values = Output.objects.filter(processes__in=processes)
+        return {
+            'last_check_date': last_check_date,
+            'diagrams': diagrams,
+            'sub_diagrams': sub_diagrams,
+            'processes': processes,
+            'input_values': input_values,
+            'output_values': output_values
+        }

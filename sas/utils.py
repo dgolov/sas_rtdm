@@ -1,4 +1,4 @@
-from .models import SubDiagram, Processes, Input, Output, Diagram, CheckSAS
+from .models import SubDiagram, Processes, Input, Output, Diagram
 from xml.dom import minidom
 
 
@@ -88,21 +88,20 @@ class Parser:
 
         return processes_list
 
-    def parse_xml(self) -> dict:
+    def parse_xml(self, new_check) -> dict:
         FlowDO = self.dom.getElementsByTagName('FlowDO')
         diagram_name = FlowDO[0].getElementsByTagName('EventName')
         diagram_name = diagram_name[0].childNodes[0].nodeValue[:-6]
         sub_diagrams_list = self.get_self_diagrams_info()
         processes_list = self.get_processes_info()
-        self.create_models(diagram_name, processes_list, sub_diagrams_list)
+        self.create_models(diagram_name, processes_list, sub_diagrams_list, new_check)
         return {
             'processes': processes_list,
             'subdiagrams': sub_diagrams_list,
         }
 
     @staticmethod
-    def create_models(diagram_name, processes_list, sub_diagrams_list):
-        new_check = CheckSAS.objects.create()
+    def create_models(diagram_name, processes_list, sub_diagrams_list, new_check):
         diagram = Diagram.objects.create(name=diagram_name, diagram_list=new_check)
         for sub_diagram in sub_diagrams_list:
             SubDiagram.objects.create(
@@ -131,14 +130,3 @@ class Parser:
                     type=item_output[1],
                     physical_name=item_output[2],
                     processes=new_process)
-
-
-if __name__ == '__main__':
-    parser = Parser('out.xml')
-    result = parser.parse_xml()
-    for report_type, result_list in result.items():
-        print(report_type.upper())
-        for item in result_list:
-            for key, value in item.items():
-                print(key, value)
-        print()

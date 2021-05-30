@@ -17,22 +17,8 @@
     <div class="row mb-5">
         <div class="col-md-3"></div>
         <div class="col-md-6">
-            {% for report_type, result_list in content.items %}
-                <h2 style="margin-top: 100px; text-align: center;">{{ report_type }}</h2>
-                {% for item in result_list %}
-                    <table class="table">
-                        <thead>
-                        <th width="30%">Ключ</th>
-                        <th width="70%">Значение</th>
-                        </thead>
-                        {% for key, value in item.items %}
-                            <tr>
-                                <td width="30%">{{ key }}</td>
-                                <td width="70%">{{ value }}</td>
-                            </tr>
-                        {% endfor %}
-                    </table>
-                {% endfor %}
+            {% for item in dead_process %}
+                <p>Process id - {{ item.pid }} | Process name - {{ item.name }}</p>
             {% endfor %}
         </div>
         <div class="col-md-3"></div>
