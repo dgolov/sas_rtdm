@@ -1,5 +1,6 @@
 from django.shortcuts import render
 from django.views import View
+from django.db import connections
 from scp import SCPClient
 from .mixins import RequestDataMixin
 from .models import SubDiagram, Processes, Input, Output, Diagram, CheckSAS
@@ -21,6 +22,9 @@ class DetailDecisionsView(RequestDataMixin, View):
         self.get_token()
         response_SAS = requests.get(self.host + 'decisions/flows/' + self.sourceURI, headers=self.headers)
         content = response_SAS.json()
+        print(content)
+        for item in content:
+            print(item, type(item))
         context = {'title': "Подробные параметры решения", 'content': content['signature']}
         return render(request, 'sas_rtdm/sas_id_data.html', context)
 
@@ -36,9 +40,10 @@ class DecisionsView(RequestDataMixin, View):
 
     def get(self, request, *args, **kwargs):
         self.get_token()
-        response_SAS = requests.get(self.host + 'decisions/flows/' + self.sourceURI, headers=self.headers)
+        response_SAS = requests.get(self.host + '/decisions/flows/bc24bee2-138e-4e2c-9be4-5f343565b9e4/revisions/2c9a6954-b0ca-4128-94e0-11e3c8a1204f' + self.sourceURI, headers=self.headers)
         content = response_SAS.json()
-        context = {'title': "Параметры решения", 'content': content['items']}
+        print(content)
+        context = {'title': "Параметры решения", 'content': None}
         return render(request, 'sas_rtdm/sas_id_data.html', context)
 
 
@@ -89,13 +94,18 @@ class GetRTDMData(View):
             parser = Parser('out.xml')
             parser.parse_xml(new_check)
 
-        last_check_data = self.get_last_check_data()
-        for process in last_check_data['processes']:
+        context = self.get_last_check_data()
+        for process in context['processes']:
             if process.source == 'Cell':
                 dead_process.append(process)
 
-        context = {'title': 'Title', 'content_list': last_check_data, 'dead_process': dead_process}
-        return render(request, 'sas_rtdm/sas_rtdm_data.html', context)
+        check_result = self.search_dependencies(request)
+        context['dead'] = dead_process
+        context['input'] = check_result[0]
+        context['output'] = check_result[1]
+        context['title'] = 'Check RTDM and MSSQL data'
+
+        return render(request, 'sas_rtdm/index.html', context=context)
 
     def download_xml(self, file):
         """ Отправляет имя исполняемого xml файла на сервер и загружает out.xml с результатами запроса """
@@ -139,3 +149,82 @@ class GetRTDMData(View):
             'input_values': input_values,
             'output_values': output_values
         }
+
+    @staticmethod
+    def get_mssql_data(request):
+        """ Подключается к MSSQL на сервере, выполняет запросы на получение данных """
+        table_names = []
+        table_results = []
+        subject = ''
+        with connections['ms'].cursor() as cursor:
+            if subject == '':
+                items = cursor.execute('''SELECT TABLE_NAME
+                                        FROM INFORMATION_SCHEMA.TABLES
+                                        WHERE table_type='BASE TABLE' AND TABLE_NAME != 'sysdiagrams'
+                                        ''')
+                for item in items:
+                    table_names.append(item)
+            else:
+                for item in subject:
+                    table_names.append(item)
+            for table_name in table_names:
+                items = (cursor.execute('''SELECT
+                                TABLE_NAME,
+                                COLUMN_NAME,
+                                DATA_TYPE,
+                                IS_NULLABLE
+                                FROM INFORMATION_SCHEMA.COLUMNS
+                                WHERE table_name={}
+                                '''.format('\'' + str(table_name[0]) + '\'')))
+                for item in items:
+                    table_results.append(item)
+        return table_results
+
+    @staticmethod
+    def standardization_data_type(type_list):
+        """ Приводит значения типов данных в RTDM и MSSQL к одномуц стандарту
+        :param type_list: - список данных
+        """
+        result_list = []
+        for value in type_list:
+            if value.type == 'data grid':
+                refactoring_value = 'data'
+            elif value.type == 'date list':
+                refactoring_value = 'data'
+            elif value.type == 'double list':
+                refactoring_value = 'double'
+            elif value.type == 'string list':
+                refactoring_value = 'string'
+            else:
+                refactoring_value = value.type
+            result_list.append([value.processes.table_name, value.name, refactoring_value])
+        return result_list
+
+    def search_dependencies(self, request):
+        """ Находит зависимости между данными с БД и c SAS RTDM """
+        sql_data = self.get_mssql_data()
+        last_check = self.get_last_check_data()
+        comparison_input_data_list = []
+        comparison_output_data_list = []
+        similarity_list = []
+
+        for item in sql_data:
+            if item[2] == 'numeric':
+                item[2] = 'double'
+            if item[2] == 'nvarchar' or item[2] == 'varchar' or item[2] == 'string list':
+                item[2] = 'string'
+            result_sql_list = [item[0], item[1], item[2]]
+            similarity_list.append(result_sql_list)
+
+        refactoring_input_data_list = self.standardization_data_type(last_check['input_values'])
+        refactoring_output_data_list = self.standardization_data_type(last_check['output_values'])
+
+        for item in refactoring_input_data_list:
+            if item not in similarity_list:
+                comparison_input_data_list.append(item)
+
+        for item in refactoring_output_data_list:
+            if item not in similarity_list:
+                comparison_output_data_list.append(item)
+
+        return [comparison_input_data_list, comparison_output_data_list]

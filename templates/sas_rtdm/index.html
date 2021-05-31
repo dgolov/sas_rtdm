@@ -1,0 +1,64 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="{% static 'style.css' %}" type="text/css">
+    <title>{{ title }}</title>
+</head>
+<body>
+<div class="menu">
+    <h2>Мертвые процессы</h2>
+    {% for d in dead %}
+        <p>id: {{ d.pid }}</p>
+        <p>Название: {{ d.name }}</p>
+        <p>Таблица бд: {{ d.table_name }}</p>>
+    {% endfor %}
+    <h2>Input: {{ input }}</h2>
+    <h2>Output: {{ output }}</h2></div>
+{% for diagram in diagrams %}
+    <div class="main">
+        <div class="dia">
+            <p>Название диаграммы: {{ diagram.name }}</p>
+        </div>
+        <h2>Поддиаграммы:</h2>
+        {% for subdiagram in subdiagrams %}
+            <div class="sub">
+                <p>id: {{ subdiagram.did }}</p>
+                <p>Название: {{ subdiagram.name }}</p>
+                <p>Ссылка на объект: {{ subdiagram.source }}</p>
+            </div>
+        {% endfor %}
+        <h2>Процессы:</h2>
+        {% for proces in processes %}
+            <div class="processes">
+                <p>id: {{ proces.pid }}</p>
+                <p>Название: {{ proces.name }}</p>
+                <p>Ссылка на объект: {{ proces.source }}</p>
+                <p>Таблица бд: {{ proces.table_name }}</p>
+                <hr>
+                <h3>Данные:</h3>
+                {% for input in inputs %}
+                    <div class="input">
+                        <div>
+                            <p>Название:{{ input.name }}</p>
+                            <p>Тип: {{ input.type }}</p>
+                            <p>Имя SAS: {{ input.physical_name }}</p>
+                        </div>
+                    </div>
+                {% endfor %}
+                {% for output in outputs %}
+                    <div class="output">
+                        <div>
+                            <p>Название:{{ output.name }}</p>
+                            <p>Тип: {{ output.type }}</p>
+                            <p>Имя SAS: {{ output.physical_name }}</p>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+    </div>
+{% endfor %}
+</body>
+</html>

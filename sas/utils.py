@@ -46,6 +46,9 @@ class Parser:
         return diagrams_list
 
     def get_processes_info(self) -> list:
+        """ Получает информацию о существующих процессах в RTDM
+        :return: список процессов
+        """
         processes_list = []
         process_node = self.dom.getElementsByTagName('ProcessNodeDataDO')
 
@@ -102,6 +105,9 @@ class Parser:
 
     @staticmethod
     def create_models(diagram_name, processes_list, sub_diagrams_list, new_check):
+        """ Записывает базу данных значения диаграмм, процессов и переменных
+            полученных в ходе последней проверки
+        """
         diagram = Diagram.objects.create(name=diagram_name, diagram_list=new_check)
         for sub_diagram in sub_diagrams_list:
             SubDiagram.objects.create(
